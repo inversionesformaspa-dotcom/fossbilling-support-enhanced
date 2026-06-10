@@ -1,0 +1,153 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% import 'macro_functions.html.twig' as mf %}
+
+{% block meta_title %}#{{ ticket.id }} - {{ ticket.subject }}{% endblock %}
+
+{% block breadcrumbs %}
+    <ul class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home" /></svg></a></li>
+        <li class="breadcrumb-item"><a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a></li>
+        <li class="breadcrumb-item"><a href="{{ 'support/my-staff-tickets'|url }}">{{ 'Mis Consultas'|trans }}</a></li>
+        <li class="breadcrumb-item active">#{{ ticket.id }}</li>
+    </ul>
+{% endblock %}
+
+{% set active_menu = 'support' %}
+
+{% block content %}
+<div class="card mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="mb-1">#{{ ticket.id }} - {{ ticket.subject }}</h3>
+            <span class="badge {% if ticket.status == 'open' %}bg-success{% elseif ticket.status == 'on_hold' %}bg-warning{% else %}bg-secondary{% endif %} text-white fs-6">
+                {{ ticket.status|trans }}
+            </span>
+            <span class="text-muted ms-2 small">{{ ticket.updated_at|timeago }} {{ 'ago'|trans }}</span>
+        </div>
+        <div>
+            {% if ticket.status != 'closed' %}
+            <button type="button" class="btn btn-danger btn-sm" onclick="closeTicket({{ ticket.id }})">
+                <svg class="icon me-1"><use xlink:href="#close"/></svg>
+                {{ 'Cerrar Ticket'|trans }}
+            </button>
+            {% endif %}
+            <a href="{{ 'support/my-staff-tickets'|url }}" class="btn btn-outline-secondary btn-sm">
+                <svg class="icon me-1"><use xlink:href="#arrow-left"/></svg>
+                {{ 'Volver'|trans }}
+            </a>
+        </div>
+    </div>
+</div>
+
+{# Mensajes #}
+<div class="conversation">
+    {% for message in ticket.messages %}
+    <div class="card mb-3 {% if message.author.email == profile.email %}border-primary{% endif %}">
+        <div class="card-header">
+            <div class="d-flex align-items-center">
+                {{ avatar(message.author.email, 24, 'avatar avatar-xs me-2') }}
+                <strong>{{ message.author.name }}</strong>
+                <span class="text-muted ms-2 small">&lt;{{ message.author.email }}&gt;</span>
+                <span class="ms-auto text-muted small">{{ message.created_at|format_datetime }}</span>
+            </div>
+        </div>
+        <div class="card-body">
+            {{ message.content|markdown_to_html }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# Caja de respuesta #}
+{% if ticket.status != 'closed' %}
+<div class="card" id="reply-box">
+    <div class="card-header">
+        <h5 class="mb-0">{{ 'Responder'|trans }}</h5>
+    </div>
+    <form method="post" action="{{ 'support/my_staff_ticket_reply'|api_url }}" {{ fb_api_form({ reload: true }) }}>
+        <input type="hidden" name="CSRFToken" value="{{ CSRFToken }}"/>
+        <input type="hidden" name="id" value="{{ ticket.id }}"/>
+        <div class="card-body">
+            <textarea name="content" class="form-control" rows="6" placeholder="{{ 'Escribe tu respuesta...'|trans }}" required></textarea>
+        </div>
+        <div class="card-footer d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <svg class="icon me-1"><use xlink:href="#send"/></svg>
+                {{ 'Enviar respuesta'|trans }}
+            </button>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+    <span>{{ 'Este ticket está cerrado.'|trans }}</span>
+    <button type="button" class="btn btn-warning btn-sm" onclick="reopenTicket({{ ticket.id }})">
+        <svg class="icon me-1"><use xlink:href="#refresh"/></svg>
+        {{ 'Reabrir Ticket'|trans }}
+    </button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block js %}
+<script>
+function closeTicket(id) {
+    if (!confirm('{{ "¿Cerrar este ticket?"|trans }}')) return;
+    
+    fetch('{{ "support/my_staff_ticket_close"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({id: id, CSRFToken: '{{ CSRFToken }}'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + (data.error.message || 'Desconocido'));
+        } else {
+            location.reload();
+        }
+    });
+}
+function reopenTicket(id) {
+    if (!confirm('{{ "¿Reabrir este ticket?"|trans }}')) return;
+    
+    fetch('{{ "support/my_staff_ticket_reply"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({id: id, content: 'Ticket reabierto por el usuario.', CSRFToken: '{{ CSRFToken }}'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + (data.error.message || 'Desconocido'));
+        } else {
+            location.reload();
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const lastMsg = document.querySelector('.conversation .card:last-child');
+    if (lastMsg) lastMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+</script>
+{% endblock %}

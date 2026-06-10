@@ -1,0 +1,314 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% import 'macro_functions.html.twig' as mf %}
+
+{% block meta_title %}#{{ ticket.id }} - {{ ticket.subject }}{% endblock %}
+
+{% block breadcrumbs %}
+    <ul class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ '/'|url }}">
+                <svg class="icon"><use xlink:href="#home" /></svg>
+            </a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ 'support/staff-tickets'|url }}">{{ 'Staff Tickets'|trans }}</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">#{{ ticket.id }} - {{ ticket.subject|truncate(40) }}</li>
+    </ul>
+{% endblock %}
+
+{% set active_menu = 'support' %}
+
+{% block content %}
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <h3 class="mb-1">
+                    <span class="badge bg-blue-lt me-2">#{{ ticket.id }}</span>
+                    {{ ticket.subject }}
+                </h3>
+                <p class="text-muted mb-0 small">
+                    {{ 'Creado'|trans }}: {{ ticket.created_at|format_datetime }}
+                    {% if ticket.created_at != ticket.updated_at %}
+                        &middot; {{ 'Actualizado'|trans }}: {{ ticket.updated_at|timeago }} {{ 'ago'|trans }}
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                {% if ticket.status == 'open' %}
+                    <span class="badge bg-success fs-5 text-white">{{ 'Open'|trans }}</span>
+                {% elseif ticket.status == 'on_hold' %}
+                    <span class="badge bg-warning fs-5 text-white">{{ 'On Hold'|trans }}</span>
+                {% elseif ticket.status == 'closed' %}
+                    <span class="badge bg-secondary fs-5 text-white">{{ 'Closed'|trans }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link active" href="#tab-conversation" data-bs-toggle="tab">
+                <svg class="icon me-1"><use xlink:href="#message"/></svg>
+                {{ 'Conversación'|trans }}
+                {% if ticket.messages|length > 0 %}
+                    <span class="badge bg-blue ms-1">{{ ticket.messages|length }}</span>
+                {% endif %}
+            </a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" href="#tab-info" data-bs-toggle="tab">
+                <svg class="icon me-1"><use xlink:href="#info"/></svg>
+                {{ 'Información'|trans }}
+            </a>
+        </li>
+        {% if ticket.notes is defined and ticket.notes|length > 0 %}
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" href="#tab-notes" data-bs-toggle="tab">
+                <svg class="icon me-1"><use xlink:href="#notes"/></svg>
+                {{ 'Notas'|trans }}
+                <span class="badge bg-yellow ms-1">{{ ticket.notes|length }}</span>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-conversation" role="tabpanel">
+            <div class="conversation px-3 pt-3">
+                {% if ticket.messages is defined and ticket.messages|length > 0 %}
+                    {% for i, message in ticket.messages %}
+                    <div class="card mb-3 {% if message.author.name == profile.name %}border-primary{% endif %} {{ loop.last ? 'last' : '' }}">
+                        <div class="card-header" style="cursor: pointer;">
+                            <div class="d-flex align-items-center">
+                                {{ avatar(message.author.email, 24, 'avatar avatar-xs me-2') }}
+                                <div>
+                                    <strong>{{ message.author.name }}</strong>
+                                    <span class="text-muted ms-2 small">&lt;{{ message.author.email }}&gt;</span>
+                                </div>
+                                <span class="ms-auto text-muted small">
+                                    {{ message.created_at|format_datetime }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body" style="display: {{ loop.last ? 'block' : 'none' }};">
+                            <div class="markdown-content">
+                                {{ message.content|markdown_to_html }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty py-4">
+                        <p class="empty-title">{{ 'Sin mensajes'|trans }}</p>
+                        <p class="empty-subtitle text-muted">{{ 'Este ticket aún no tiene respuestas.'|trans }}</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if ticket.status != 'closed' %}
+            <div class="card m-3" id="reply-box">
+                <form method="post" 
+                      action="{{ 'support/staff_ticket_reply'|api_url }}" 
+                      {{ fb_api_form({ reload: true }) }}>
+                    <input type="hidden" name="CSRFToken" value="{{ CSRFToken }}"/>
+                    <input type="hidden" name="id" value="{{ ticket.id }}"/>
+
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <svg class="icon me-1"><use xlink:href="#edit"/></svg>
+                            {{ 'Responder como'|trans }} {{ profile.name }}
+                        </h5>
+                    </div>
+
+                    <div class="card-body">
+                        <textarea class="form-control editor-textarea" 
+                                  id="reply-content" 
+                                  name="content" 
+                                  rows="8" 
+                                  placeholder="{{ 'Escribe tu respuesta aquí...'|trans }}" 
+                                  required></textarea>
+                        <small class="text-muted mt-1 d-block">
+                            {{ 'Puedes usar formato Markdown.'|trans }}
+                        </small>
+                    </div>
+
+                    <div class="card-footer d-flex gap-2">
+                        <a href="#" class="btn btn-secondary" id="toggleMessages">
+                            <svg class="icon me-1"><use xlink:href="#eye"/></svg>
+                            {{ 'Mostrar/Ocultar mensajes'|trans }}
+                        </a>
+
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            <svg class="icon me-1"><use xlink:href="#send"/></svg>
+                            {{ 'Enviar respuesta'|trans }}
+                        </button>
+
+                        <button type="button" 
+                                class="btn btn-success" 
+                                id="reply-and-close-btn">
+                            <svg class="icon me-1"><use xlink:href="#check"/></svg>
+                            {{ 'Responder y Cerrar'|trans }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% else %}
+            <div class="alert alert-info m-3">
+                <div class="d-flex align-items-center">
+                    <svg class="icon me-2"><use xlink:href="#info"/></svg>
+                    <div>
+                        <strong>{{ 'Ticket cerrado'|trans }}</strong>
+                        <p class="mb-0 small">{{ 'Este ticket está cerrado. Puedes crear uno nuevo si necesitas continuar con esta consulta.'|trans }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-pane fade" id="tab-info" role="tabpanel">
+            <div class="card-body">
+                <table class="table table-vcenter">
+                    <tbody>
+                        <tr><td class="w-25 text-end fw-bold">{{ 'Ticket ID'|trans }}</td><td>#{{ ticket.id }}</td></tr>
+                        <tr><td class="text-end fw-bold">{{ 'Helpdesk'|trans }}</td><td>{{ ticket.helpdesk.name ?? ('#' ~ ticket.support_helpdesk_id) }}</td></tr>
+                        <tr><td class="text-end fw-bold">{{ 'Estado'|trans }}</td><td>{{ mf.status_badge(ticket.status, 'ticket') }}</td></tr>
+                        <tr><td class="text-end fw-bold">{{ 'Asunto'|trans }}</td><td>{{ ticket.subject }}</td></tr>
+                        <tr><td class="text-end fw-bold">{{ 'Creado'|trans }}</td><td>{{ ticket.created_at|format_datetime }}</td></tr>
+                        <tr><td class="text-end fw-bold">{{ 'Última actualización'|trans }}</td><td>{{ ticket.updated_at|format_datetime }}</td></tr>
+                        <tr><td class="text-end fw-bold">{{ 'Mensajes'|trans }}</td><td>{{ ticket.messages|length }} {{ 'mensaje(s)'|trans }}</td></tr>
+                        {% if ticket.author_name is defined and ticket.author_name %}
+                        <tr><td class="text-end fw-bold">{{ 'Autor'|trans }}</td><td>{{ ticket.author_name }}{% if ticket.author_email is defined %} <span class="text-muted small">&lt;{{ ticket.author_email }}&gt;</span>{% endif %}</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card-footer d-flex gap-2">
+                {% if ticket.status != 'closed' %}
+                <a class="btn btn-warning" 
+                   href="{{ 'support/staff_ticket_close'|api_url(query: { 'id': ticket.id }) }}"
+                   {{ fb_api_link({ message: '¿Estás seguro de cerrar este ticket?'|trans, modal: {type: 'confirm', title: 'Cerrar Ticket'|trans}, reload: true }) }}>
+                    <svg class="icon me-1"><use xlink:href="#close"/></svg>
+                    {{ 'Cerrar Ticket'|trans }}
+                </a>
+                {% endif %}
+
+                <a class="btn btn-outline-secondary" href="{{ 'support/staff-tickets'|url }}">
+                    <svg class="icon me-1"><use xlink:href="#arrow-left"/></svg>
+                    {{ 'Volver a lista'|trans }}
+                </a>
+            </div>
+        </div>
+
+        {% if ticket.notes is defined and ticket.notes|length > 0 %}
+        <div class="tab-pane fade" id="tab-notes" role="tabpanel">
+            <div class="card-body">
+                {% for note in ticket.notes %}
+                <div class="card card-sm mb-2">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                            {{ avatar(note.author.email, 20, 'avatar avatar-xs me-2') }}
+                            <strong class="me-2">{{ note.author.name }}</strong>
+                            <span class="text-muted small">{{ note.created_at|format_datetime }}</span>
+                        </div>
+                        <p class="mb-0">{{ note.note|markdown_to_html }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.getElementById('toggleMessages');
+    if (toggleBtn) {
+        let allVisible = false;
+        toggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            allVisible = !allVisible;
+            document.querySelectorAll('.conversation .card-body').forEach(function(body) {
+                body.style.display = allVisible ? 'block' : 'none';
+            });
+            const lastMessage = document.querySelector('.conversation .card.last .card-body');
+            if (lastMessage) lastMessage.style.display = 'block';
+        });
+    }
+
+    document.querySelectorAll('.conversation .card-header').forEach(function(header) {
+        header.addEventListener('click', function() {
+            const body = this.nextElementSibling;
+            if (body && body.classList.contains('card-body')) {
+                body.style.display = body.style.display === 'none' ? 'block' : 'none';
+            }
+        });
+    });
+
+    const lastCard = document.querySelector('.conversation .card.last');
+    if (lastCard) {
+        setTimeout(function() {
+            lastCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+    }
+
+    const replyTextarea = document.getElementById('reply-content');
+    if (replyTextarea) replyTextarea.focus();
+
+    // Botón "Responder y Cerrar"
+    const replyAndCloseBtn = document.getElementById('reply-and-close-btn');
+    if (replyAndCloseBtn) {
+        replyAndCloseBtn.addEventListener('click', function() {
+            const form = document.querySelector('#reply-box form');
+            const formData = new FormData(form);
+            formData.append('id', '{{ ticket.id }}');
+            formData.append('CSRFToken', '{{ CSRFToken }}');
+
+            fetch('{{ "support/staff_ticket_reply"|api_url }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: new URLSearchParams(formData)
+            })
+            .then(r => r.json())
+            .then(() => {
+                fetch('{{ "support/staff_ticket_close"|api_url }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({ 'id': '{{ ticket.id }}', 'CSRFToken': '{{ CSRFToken }}' })
+                })
+                .then(() => location.reload());
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
+
+{% block head %}{{ wysiwyg('.editor-textarea') }}{% endblock %}

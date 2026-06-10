@@ -1,0 +1,263 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% block meta_title %}{{ 'Support Settings'|trans }}{% endblock %}
+
+{% set active_menu = 'system' %}
+
+{% block breadcrumbs %}
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ '/'|url }}">
+                <svg class="icon">
+                    <use xlink:href="#home" />
+                </svg>
+            </a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ 'system'|url }}">{{ 'Settings'|trans }}</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Support'|trans }}</li>
+    </ol>
+{% endblock %}
+
+{% block content %}
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3 class="card-title">{{ 'Support Settings'|trans }}</h3>
+                <p class="card-subtitle">{{ 'Manage support automation, knowledge base availability, public tickets, and helpdesk configuration.'|trans }}</p>
+            </div>
+        </div>
+        <div class="card-body pt-3 pb-0 px-0">
+                    <ul class="nav nav-pills mb-3 px-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <a class="nav-link active" href="#tab-index" data-bs-toggle="tab" role="tab">{{ 'General'|trans }}</a>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <a class="nav-link" href="#tab-helpdesks" data-bs-toggle="tab" role="tab">{{ 'Helpdesks'|trans }}</a>
+                        </li>
+                    </ul>
+
+            <div class="tab-content border-top">
+                <div class="tab-pane fade show active" id="tab-index" role="tabpanel">
+                    <form method="post" action="{{ 'extension/config_save'|api_url }}" {{ fb_api_form({ message: 'Configuration Updated'|trans }) }}>
+                        {% set params = admin.extension_config_get({ 'ext': 'mod_support' }) %}
+                        <div class="card-body">
+                            <div class="alert alert-info" role="alert">
+                                <strong class="me-1">{{ 'Information:'|trans }}</strong>{{ 'Use these settings to automate default ticket responses, control submission throttling, and manage public support visibility.'|trans }}
+                            </div>
+
+                            <h4 class="card-title mb-2">{{ 'Auto Responder'|trans }}</h4>
+                            <p class="text-secondary mb-3">{{ 'Automatically send a canned response when a new ticket is created.'|trans }}</p>
+                            <label class="form-check form-switch form-switch-2 mb-3">
+                                <input class="form-check-input" name="autorespond_enable" type="checkbox" {% if params.autorespond_enable %} checked="checked"{% endif %}>
+                                <span class="form-check-label">{{ 'Enable Auto Responder'|trans }}</span>
+                            </label>
+                            <div id="autorespond_enable"{% if not params.autorespond_enable %} style="display:none;"{% endif %}>
+                                <label class="form-label" for="autorespond_message_id">{{ 'Auto Response Message'|trans }}</label>
+                                <select class="form-select col-12 col-xl-8" id="autorespond_message_id" name="autorespond_message_id">
+                                    {% for response in admin.support_canned_get_list({ 'per_page': 90 }).list %}
+                                        <option value="{{ response.id }}"{% if params.autorespond_message_id == response.id %} selected{% endif %}>{{ response.title }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body border-top">
+                            <h4 class="card-title mb-2">{{ 'Ticket Delay'|trans }}</h4>
+                            <p class="text-secondary mb-3">{{ 'Optionally add a canned response when a ticket remains unanswered for a configured number of hours.'|trans }}</p>
+                            <label class="form-check form-switch form-switch-2 mb-2">
+                                <input class="form-check-input" name="delay_enable" type="checkbox" {% if params.delay_enable %} checked="checked"{% endif %}>
+                                <span class="form-check-label">{{ 'Enable Delay Message'|trans }}</span>
+                            </label>
+                            <small class="form-hint d-block mb-3">{{ 'If enabled, the selected canned response will be added to the default reply message.'|trans }}</small>
+                            <div id="delay_enable"{% if not params.delay_enable %} style="display:none;"{% endif %}>
+                                <div class="row g-3">
+                                    <div class="col-lg-4">
+                                        <label class="form-label" for="delay_hours">{{ 'Delay'|trans }}</label>
+                                        <div class="input-group">
+                                            <input class="form-control" id="delay_hours" type="number" min="0" name="delay_hours" value="{{ params.delay_hours|default(24) }}" placeholder="24">
+                                            <span class="input-group-text">{{ 'hours'|trans }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-8">
+                                        <label class="form-label" for="delay_message_id">{{ 'Delay Message'|trans }}</label>
+                                        <select class="form-select" id="delay_message_id" name="delay_message_id">
+                                            {% for response in admin.support_canned_get_list({ 'per_page': 90 }).list %}
+                                                <option value="{{ response.id }}"{% if params.delay_message_id == response.id %} selected{% endif %}>{{ response.title }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label" for="wait_hours">{{ 'Wait Time Between Ticket Submissions'|trans }}</label>
+                                <div class="input-group col-12 col-xl-8">
+                                    <input class="form-control" id="wait_hours" type="number" min="0" name="wait_hours" value="{{ params.wait_hours }}">
+                                    <span class="input-group-text">{{ 'hours'|trans }}</span>
+                                </div>
+                                <small class="form-hint">{{ 'If set, users must wait this many hours between consecutive ticket submissions.'|trans }}</small>
+                            </div>
+                            <input type="hidden" name="ext" value="mod_support">
+                        </div>
+                        <div class="card-body border-top">
+                            <h4 class="card-title mb-2">{{ 'Knowledge Base'|trans }}</h4>
+                            <p class="text-secondary mb-3">{{ 'Control whether the knowledge base is visible to clients and available throughout the support area.'|trans }}</p>
+                            <label class="form-check form-switch form-switch-2">
+                                <input class="form-check-input" name="kb_enable" type="checkbox" {% if params.kb_enable %} checked="checked"{% endif %}>
+                                <span class="form-check-label">{{ 'Enable Knowledge Base'|trans }}</span>
+                            </label>
+                        </div>
+                        <div class="card-body border-top">
+                            <h4 class="card-title mb-2">{{ 'Public Tickets'|trans }}</h4>
+                            <p class="text-secondary mb-3">{{ 'Control whether non-client visitors may open public support tickets.'|trans }}</p>
+                            <label class="form-check form-switch form-switch-2">
+                                <input class="form-check-input" name="disable_public_tickets" type="checkbox" {% if params.disable_public_tickets %} checked="checked"{% endif %}>
+                                <span class="form-check-label">{{ 'Disable Public Tickets'|trans }}</span>
+                            </label>
+                        </div>
+                        {# ⭐ EMAIL FILTER SYSTEM (personalizado) #}
+                        <div class="card-body border-top">
+                            <h4 class="card-title mb-2">{{ 'Email Filter System'|trans }}</h4>
+                            <p class="text-secondary mb-3">{{ 'Configure mail filtering and spam detection settings.'|trans }}</p>
+                            
+                            <div class="mb-3 row">
+                                <label class="col-md-3 col-form-label">{{ 'Panel de Control'|trans }}</label>
+                                <div class="col-md-6">
+                                    <select name="control_panel" class="form-select" id="control-panel-select">
+                                        <option value="auto" {% if params.control_panel|default('auto') == 'auto' %}selected{% endif %}>
+                                            {{ 'Auto-detectar'|trans }}
+                                        </option>
+                                        <option value="directadmin" {% if params.control_panel|default('') == 'directadmin' %}selected{% endif %}>
+                                            DirectAdmin
+                                        </option>
+                                        <option value="plesk" {% if params.control_panel|default('') == 'plesk' %}selected{% endif %}>
+                                            Plesk
+                                        </option>
+                                        <option value="cpanel" {% if params.control_panel|default('') == 'cpanel' %}selected{% endif %}>
+                                            cPanel
+                                        </option>
+                                        <option value="other" {% if params.control_panel|default('') == 'other' %}selected{% endif %}>
+                                            {{ 'Otro (especificar ruta)'|trans }}
+                                        </option>
+                                    </select>
+                                    <small class="form-hint">
+                                        {{ 'Selecciona el panel de control del servidor. Si no usas SpamAssassin, puedes dejarlo en Auto-detectar.'|trans }}
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3 row" id="custom-path-row" style="{% if params.control_panel|default('auto') != 'other' %}display:none;{% endif %}">
+                                <label class="col-md-3 col-form-label">{{ 'Ruta Base del Mail'|trans }}</label>
+                                <div class="col-md-6">
+                                    <input class="form-control" type="text" name="mail_base_path" 
+                                           value="{{ params.mail_base_path ?? '' }}" 
+                                           placeholder="/home/user/imap">
+                                    <small class="form-hint">
+                                        {{ 'Ejemplo: /home/usuario/imap o /var/vmail.'|trans }}<br>
+                                        {{ 'Solo necesario para SpamAssassin. Sieve no requiere ruta.'|trans }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer text-end">
+                            <input type="submit" class="btn btn-primary" value="{{ 'Update'|trans }}">
+                        </div>
+                    </form>
+                </div>
+
+                <div class="tab-pane fade" id="tab-helpdesks">
+                    {{ include('partial_search.html.twig', {
+                        search_toolbar_actions: '<button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#mod-support-new-helpdesk"><svg class="icon"><use xlink:href="#plus" /></svg><span>' ~ ('New Helpdesk'|trans) ~ '</span></button>'
+                    }) }}
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter table-striped text-nowrap">
+                            <thead>
+                            <tr>
+                                <th class="w-1">#</th>
+                                <th>{{ 'Title'|trans }}</th>
+                                <th>{{ 'Email'|trans }}</th>
+                                <th>{{ 'Close Tickets After'|trans }}</th>
+                                <th class="w-1"></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for helpdesk in admin.support_helpdesk_get_list({ 'per_page': 50, 'page': request.page }|merge(request)).list %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        <a href='{{ "support/helpdesk/#{helpdesk.id}"|url }}'>{{ helpdesk.name }}</a>
+                                    </td>
+                                    <td>{{ helpdesk.email }}</td>
+                                    <td>{{ helpdesk.close_after }} {{ 'hour(s)'|trans }}</td>
+                                    <td>
+                                        <a class="btn btn-icon" href='{{ "support/helpdesk/#{helpdesk.id}"|url }}' data-bs-toggle="tooltip" data-bs-title="{{ 'Edit'|trans }}">
+                                            <svg class="icon">
+                                                <use xlink:href="#edit" />
+                                            </svg>
+                                        </a>
+                                        <a class="btn btn-icon" href="{{ 'support/helpdesk_delete'|api_url(query: { 'id': helpdesk.id }) }}"
+                                            data-bs-toggle="tooltip" data-bs-title="{{ 'Delete'|trans }}"
+                                            {{ fb_api_link({ message: 'Are you sure?'|trans, modal: {type: 'confirm', title: 'Are you sure?'|trans}, redirect: 'extension/settings/support'|url }) }}>
+                                            <svg class="icon">
+                                                <use xlink:href="#delete" />
+                                            </svg>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">{{ 'The list is empty'|trans }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{{ include('modal/mod_support_new_helpdesk.html.twig') }}
+{% endblock %}
+
+{% block js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let autoRespondToggle = document.querySelector('input[name=autorespond_enable]');
+        autoRespondToggle.addEventListener('click', (e) => {
+            document.getElementById('autorespond_enable').style.display = e.target.checked ? 'block' : 'none';
+        })
+
+        let delayToggle = document.querySelector('input[name=delay_enable]');
+        delayToggle.addEventListener('click', (e) => {
+            document.getElementById('delay_enable').style.display = e.target.checked ? 'block' : 'none';
+        })
+
+        var controlPanelSelect = document.getElementById('control-panel-select');
+        if (controlPanelSelect) {
+            controlPanelSelect.addEventListener('change', function() {
+                var customRow = document.getElementById('custom-path-row');
+                customRow.style.display = this.value === 'other' ? 'flex' : 'none';
+            });
+        }
+    });
+</script>
+{% endblock %}

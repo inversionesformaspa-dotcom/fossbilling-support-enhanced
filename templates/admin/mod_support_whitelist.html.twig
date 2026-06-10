@@ -1,0 +1,212 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{# modules/Support/templates/admin/mod_support_whitelist.html.twig #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+{% import 'macro_functions.html.twig' as mf %}
+
+{% set active_menu = 'support' %}
+
+{% block meta_title %}{{ 'Email Whitelist'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+    <li class="breadcrumb-item">
+        <a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home"/></svg></a>
+    </li>
+    <li class="breadcrumb-item">
+        <a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{{ 'Email Whitelist'|trans }}</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">✉️ {{ 'Email Whitelist'|trans }}</h3>
+            <p class="card-subtitle text-muted">
+                {{ 'Gestiona qué direcciones de correo pueden abrir tickets en cada mesa de soporte.'|trans }}
+            </p>
+        </div>
+    </div>
+
+    <div class="card-body border-bottom pb-4">
+        <h5 class="mb-3">➕ {{ 'Agregar email a la whitelist'|trans }}</h5>
+
+        <form method="post"
+              action="{{ 'support/whitelist_add'|api_url }}"
+              {{ fb_api_form({ message: 'Email agregado correctamente'|trans, reload: true }) }}>
+            <input type="hidden" name="CSRFToken" value="{{ CSRFToken }}"/>
+
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">{{ 'Email *'|trans }}</label>
+                    <input type="email" name="email" class="form-control" placeholder="cliente@ejemplo.com" required>
+                    <small class="text-muted">{{ 'Dirección que podrá abrir tickets'|trans }}</small>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">{{ 'Mesa de Soporte *'|trans }}</label>
+                    <select name="helpdesk_id" class="form-select" required>
+                        <option value="">— {{ 'Seleccionar mesa'|trans }} —</option>
+                        {% if accounts_with_sieve is defined and accounts_with_sieve|length > 0 %}
+                            {% for acc in accounts_with_sieve %}
+                            <option value="{{ acc.helpdesk_id }}">{{ acc.helpdesk_name }} ({{ acc.email }})</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">{{ 'Tipo *'|trans }}</label>
+                    <select name="type" class="form-select" required>
+                        <option value="client">👤 {{ 'Cliente'|trans }}</option>
+                        <option value="public">🌐 {{ 'Público'|trans }}</option>
+                        <option value="staff">🛠️ {{ 'Staff'|trans }}</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <svg class="icon me-1"><use xlink:href="#plus"/></svg>
+                        {{ 'Agregar a Whitelist'|trans }}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="card-body">
+        <h5 class="mb-3">📋 {{ 'Emails autorizados'|trans }}</h5>
+
+        {% if items is defined and items|length > 0 %}
+        <div class="mb-3">
+            <input type="text" id="wl-search" class="form-control"
+                   placeholder="🔍 {{ 'Buscar por email o helpdesk...'|trans }}"
+                   oninput="filterWhitelist(this.value)">
+        </div>
+
+        <table class="table card-table table-vcenter table-striped" id="wl-table">
+            <thead>
+                <tr>
+                    <th>{{ 'Email'|trans }}</th>
+                    <th>{{ 'Mesa de Soporte'|trans }}</th>
+                    <th>{{ 'Tipo'|trans }}</th>
+                    <th>{{ 'Agregado'|trans }}</th>
+                    <th class="w-1">{{ 'Acción'|trans }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+                <tr data-search="{{ item.email|lower }} {{ item.account_email|lower }}">
+                    <td><span class="fw-semibold">{{ item.email }}</span></td>
+                    <td><span class="text-muted small">{{ item.account_email }}</span></td>
+                    <td>
+                        {% if item.type == 'client' %}
+    			<span style="display:inline-block;padding:4px 10px;border-radius:4px;background-color:#0d6efd;color:#fff;font-size:12px;font-weight:500;">👤 {{ 'Cliente'|trans }}</span>
+			{% elseif item.type == 'staff' %}
+    			<span style="display:inline-block;padding:4px 10px;border-radius:4px;background-color:#198754;color:#fff;font-size:12px;font-weight:500;">🛠️ {{ 'Staff'|trans }}</span>
+			{% else %}
+    			<span style="display:inline-block;padding:4px 10px;border-radius:4px;background-color:#6c757d;color:#fff;font-size:12px;font-weight:500;">🌐 {{ 'Público'|trans }}</span>
+			{% endif %}
+                    </td>
+                    <td><span class="text-muted small">{{ item.created_at }}</span></td>
+                    <td>
+                        <a class="btn btn-icon btn-danger"
+                           href="{{ 'support/whitelist_remove'|api_url(query: { 'email': item.email, 'account_id': item.account_id }) }}"
+                           {{ fb_api_link({ message: 'Are you sure?'|trans, modal: {type: 'confirm', title: 'Eliminar de whitelist'|trans}, reload: true }) }}
+                           title="{{ 'Eliminar de whitelist'|trans }}">
+                            <svg class="icon"><use xlink:href="#delete"/></svg>
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <p class="text-muted small mt-2">{{ 'Total'|trans }}: <strong>{{ items|length }}</strong> {{ 'entradas'|trans }}</p>
+
+        {% else %}
+        <div class="empty">
+            <div class="empty-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-mail-off"
+                     width="40" height="40" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"
+                     fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <line x1="3" y1="3" x2="21" y2="21"/>
+                    <path d="M10.01 6h10a2 2 0 0 1 2 2v10"/>
+                    <path d="M4 6.343a2 2 0 0 0 -.996 1.743v8a2 2 0 0 0 2 2h12"/>
+                    <path d="M4 10l3.996 3m4 0l8 -5"/>
+                </svg>
+            </div>
+            <p class="empty-title">{{ 'No hay emails en la whitelist'|trans }}</p>
+            <p class="empty-subtitle text-muted">{{ 'Usa el formulario de arriba para agregar los primeros correos autorizados.'|trans }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if accounts_with_sieve is defined and accounts_with_sieve|length > 0 %}
+    <div class="card-body border-top">
+        <h5 class="mb-3">⚙️ {{ 'Estado de filtros Sieve por mesa'|trans }}</h5>
+        <div class="row g-2">
+        {% for acc in accounts_with_sieve %}
+            <div class="col-md-4">
+                <div class="card card-sm">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <span class="me-2 fs-4">{% if acc.has_sieve %}✅{% else %}⚠️{% endif %}</span>
+                            <div>
+                                <div class="fw-semibold">{{ acc.helpdesk_name }}</div>
+                                <div class="text-muted small">{{ acc.email }}</div>
+                                <div class="text-muted small">
+                                    {{ 'Sieve'|trans }}:
+                                    {% if acc.has_sieve %}
+                                        <span class="text-success">{{ 'Activo'|trans }}</span> — {{ acc.updated_at }}
+                                    {% else %}
+                                        <span class="text-warning">{{ 'Sin archivo'|trans }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    <div class="alert alert-info mt-3 small">
+    <svg class="icon me-1"><use xlink:href="#info"/></svg>
+    <strong>{{ 'Importante'|trans }}:</strong>
+    {{ 'Los cambios en esta lista actualizan automáticamente los filtros Sieve (y SpamAssassin si está configurado). No es necesario reiniciar nada.'|trans }}
+</div>
+</div>
+
+<script>
+function filterWhitelist(query) {
+    const q = query.toLowerCase().trim();
+    document.querySelectorAll('#wl-table tbody tr').forEach(function(row) {
+        const text = (row.dataset.search || '').toLowerCase();
+        row.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,244 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% import 'macro_functions.html.twig' as mf %}
+
+{% block meta_title %}{{ 'Mis Consultas'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+    <ul class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ '/'|alink }}">
+                <svg class="icon"><use xlink:href="#home" /></svg>
+            </a>
+        </li>
+        <li class="breadcrumb-item">
+            <a href="{{ '/support'|alink }}">{{ 'Soporte'|trans }}</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Mis Consultas'|trans }}</li>
+    </ul>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h3 class="card-title mb-0">{{ 'Mis Consultas'|trans }}</h3>
+                <p class="text-muted mb-0">{{ 'Tickets internos y consultas al equipo de soporte.'|trans }}</p>
+            </div>
+            <div>
+                <a href="{{ '/support'|alink }}" class="btn btn-outline-secondary btn-sm">
+                    <svg class="icon me-1"><use xlink:href="#arrow-left"/></svg>
+                    {{ 'Tickets de Soporte'|trans }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Contadores de estado #}
+<div class="row row-cards mb-3">
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|alink({ 'status': 'open' }) }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="bg-danger text-white avatar" id="counter-open">0</span>
+                    </div>
+                    <div class="col">
+                        <div class="font-weight-medium">{{ 'Abiertos'|trans }}</div>
+                        <div class="text-muted small">{{ 'Sin responder'|trans }}</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|alink({ 'status': 'on_hold' }) }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="bg-warning text-white avatar" id="counter-hold">0</span>
+                    </div>
+                    <div class="col">
+                        <div class="font-weight-medium">{{ 'En espera'|trans }}</div>
+                        <div class="text-muted small">{{ 'Respondidos'|trans }}</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|alink({ 'status': 'closed' }) }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="bg-secondary text-white avatar" id="counter-closed">0</span>
+                    </div>
+                    <div class="col">
+                        <div class="font-weight-medium">{{ 'Cerrados'|trans }}</div>
+                        <div class="text-muted small">{{ 'Resueltos'|trans }}</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|alink }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="bg-blue text-white avatar" id="counter-total">0</span>
+                    </div>
+                    <div class="col">
+                        <div class="font-weight-medium">{{ 'Total'|trans }}</div>
+                        <div class="text-muted small">{{ 'Todas las consultas'|trans }}</div>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+{# Tabla de tickets #}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">{{ 'Historial de Consultas'|trans }}</h5>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table table-striped">
+            <thead>
+                <tr>
+                    <th>{{ 'ID'|trans }}</th>
+                    <th>{{ 'Asunto'|trans }}</th>
+                    <th>{{ 'Mesa'|trans }}</th>
+                    <th>{{ 'Estado'|trans }}</th>
+                    <th>{{ 'Actualizado'|trans }}</th>
+                    <th class="w-1"></th>
+                </tr>
+            </thead>
+            <tbody id="staff-tickets-list">
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        {{ 'Cargando...'|trans }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadStaffTickets();
+    
+    // Cargar contadores
+    loadCounters();
+});
+
+function loadStaffTickets(status = '') {
+    const params = { per_page: 50 };
+    if (status) params.status = status;
+    
+    API.client.post('support/staff_ticket_get_list', params, function(result) {
+        const tbody = document.getElementById('staff-tickets-list');
+        
+        if (!result.list || result.list.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-5">
+                        <div class="empty">
+                            <div class="empty-icon">
+                                <svg class="icon icon-tabler icon-tabler-message" width="48" height="48" 
+                                     viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" 
+                                     fill="none">
+                                    <path d="M4 21v-13a3 3 0 0 1 3 -3h10a3 3 0 0 1 3 3v6a3 3 0 0 1 -3 3h-9l-4 4"/>
+                                    <line x1="8" y1="9" x2="16" y2="9"/>
+                                    <line x1="8" y1="13" x2="14" y2="13"/>
+                                </svg>
+                            </div>
+                            <p class="empty-title">{{ 'No hay consultas'|trans }}</p>
+                            <p class="empty-subtitle text-muted">
+                                ${status ? '{{ "No se encontraron tickets con ese estado."|trans }}' : '{{ "Tus consultas al equipo aparecerán aquí."|trans }}'}
+                            </p>
+                        </div>
+                    </td>
+                </tr>`;
+            return;
+        }
+        
+        let html = '';
+        result.list.forEach(function(ticket) {
+            const statusBadge = getStatusBadge(ticket.status);
+            const helpdeskName = ticket.helpdesk?.name || ('Mesa #' + ticket.support_helpdesk_id);
+            
+            html += `
+                <tr>
+                    <td><span class="badge bg-blue-lt">#${ticket.id}</span></td>
+                    <td>
+                        <a href="/support/staff-ticket/${ticket.id}" class="text-reset">
+                            ${escapeHtml(ticket.subject).substring(0, 60)}
+                        </a>
+                        ${ticket.replies ? `<span class="badge bg-info ms-1">${ticket.replies}</span>` : ''}
+                    </td>
+                    <td><span class="text-muted small">${helpdeskName}</span></td>
+                    <td>${statusBadge}</td>
+                    <td><span class="text-muted small">${ticket.updated_at}</span></td>
+                    <td>
+                        <a href="/support/staff-ticket/${ticket.id}" 
+                           class="btn btn-sm btn-outline-primary">
+                            <svg class="icon"><use xlink:href="#eye"/></svg>
+                        </a>
+                    </td>
+                </tr>`;
+        });
+        
+        tbody.innerHTML = html;
+    });
+}
+
+function loadCounters() {
+    API.client.post('support/staff_ticket_get_list', { per_page: 1 }, function(result) {
+        // Contadores rápidos
+        document.getElementById('counter-total').textContent = result.total || 0;
+    });
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'open': '<span class="badge bg-success">{{ "Abierto"|trans }}</span>',
+        'on_hold': '<span class="badge bg-warning">{{ "En espera"|trans }}</span>',
+        'closed': '<span class="badge bg-secondary">{{ "Cerrado"|trans }}</span>'
+    };
+    return badges[status] || `<span class="badge bg-light text-dark">${status}</span>`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

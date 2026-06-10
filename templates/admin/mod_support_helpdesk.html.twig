@@ -1,0 +1,607 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{# modules/Support/templates/admin/mod_support_helpdesk.html.twig #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% import 'macro_functions.html.twig' as mf %}
+
+{% block meta_title %}{{ helpdesk.name }}{% endblock %}
+
+{% set active_menu = 'system' %}
+
+{% block breadcrumbs %}
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home" /></svg></a></li>
+        <li class="breadcrumb-item"><a href="{{ 'system'|url }}">{{ 'Settings'|trans }}</a></li>
+        <li class="breadcrumb-item"><a href="{{ 'extension/settings/support'|url }}#tab-helpdesks">{{ 'Support'|trans }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Helpdesk -'|trans }} {{ helpdesk.name }}</li>
+    </ol>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h1 class="card-title">{{ 'Helpdesk'|trans }} - {{ helpdesk.name }}</h1>
+            <p class="card-subtitle">{{ 'Ayuda visible para clientes al crear tickets.'|trans }}</p>
+        </div>
+    </div>
+    
+    <form method="post" action="{{ 'support/helpdesk_update'|api_url }}" {{ fb_api_form({ message: 'Helpdesk Updated'|trans }) }}>
+        <input type="hidden" name="CSRFToken" value="{{ CSRFToken }}"/>
+        
+        <div class="card-body">
+            
+            {# ================= CAMPOS ORIGINALES ================= #}
+            <div class="mb-3 row">
+                <label class="col-md-3 col-form-label">{{ 'Title'|trans }}</label>
+                <div class="col-md-6">
+                    <input class="form-control" type="text" name="name" value="{{ helpdesk.name }}" required>
+                </div>
+            </div>
+            
+            <div class="mb-3 row">
+                <label class="col-md-3 col-form-label">{{ 'Email'|trans }} <small class="text-muted">(Público)</small></label>
+                <div class="col-md-6">
+                    <input class="form-control" type="email" name="email" value="{{ helpdesk.email ?? '' }}">
+                    <small class="form-hint">{{ 'Correo visible para clientes en formulario de contacto (opcional)'|trans }}</small>
+                </div>
+            </div>
+            
+            <div class="mb-3 row">
+                <label class="col-md-3 col-form-label">{{ 'Signature'|trans }}</label>
+                <div class="col-md-6">
+                    <textarea class="form-control" name="signature" rows="2">{{ helpdesk.signature ?? '' }}</textarea>
+                </div>
+            </div>
+            
+            <div class="mb-3 row">
+                <label class="col-md-3 col-form-label">{{ 'Close tickets after (in hours)'|trans }}</label>
+                <div class="col-md-6">
+                    <input class="form-control" type="text" size="3" name="close_after" value="{{ helpdesk.close_after ?? '' }}">
+                    <small class="form-hint">{{ 'Defina 9999 horas para desactivar cierre automático.'|trans }}</small>
+                </div>
+            </div>
+            
+            <div class="row">
+                <label class="col-md-3 form-label">{{ 'Tickets can be reopened?'|trans }}</label>
+                <div class="col-md-6">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" id="radioCanReopenYes" type="radio" name="can_reopen" value="1"{% if helpdesk.can_reopen %} checked{% endif %}>
+                        <label class="form-check-label" for="radioCanReopenYes">{{ 'Yes'|trans }}</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" id="radioCanReopenNo" type="radio" name="can_reopen" value="0"{% if not helpdesk.can_reopen %} checked{% endif %}>
+                        <label class="form-check-label" for="radioCanReopenNo">{{ 'No'|trans }}</label>
+                    </div>
+                </div>
+            </div>
+            
+            {# ============================================== #}
+            {# ========== EMAIL GATEWAY CONFIGURATION ======= #}
+            {# ============================================== #}
+            
+            <hr class="my-4">
+            
+            <h5 class="mb-3 text-primary">📬 Configuración Email Gateway</h5>
+            
+            <div class="row mb-3 mt-2">
+                <div class="col-md-6 offset-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" 
+                               id="helpdesk_enable_email_check" 
+                               name="enable_email" value="1" 
+                               {% if helpdesk.enable_email == 1 or helpdesk.enable_email == '1' %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="helpdesk_enable_email_check">
+                            Habilitar Recepción de Tickets por Email
+                        </label>
+                    </div>
+                    <small class="text-muted d-block">Permite abrir tickets enviando correos electrónicos</small>
+                </div>
+            </div>
+            
+            {# ===== BLOQUE POP3 ===== #}
+            <div class="card card-outline-primary email_config_detail border-info" 
+                 style="{% if not helpdesk.enable_email %}display:none;{% endif %}">
+                
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📨 Configuración para Recibir Emails (POP3)</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Email de Soporte *</strong></label>
+                            <input type="email" name="email_address" class="form-control" 
+                                   value="{{ helpdesk.email_address ?? '' }}" 
+                                   placeholder="soporte@tudominio.com" required>
+                            <small class="text-muted d-block">Los clientes escribirán tickets a esta dirección</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Host Servidor (POP3) *</strong></label>
+                            <input type="text" name="pop3_host" class="form-control" 
+                                   value="{{ helpdesk.pop3_host ?? '' }}" 
+                                   placeholder="mail.tudominio.com">
+                            <small class="text-muted d-block">Dejar vacío para usar dominio del email automáticamente</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Puerto POP3 *</strong></label>
+                            <select name="pop3_port" class="form-select" required>
+                                <option value="995" {% if helpdesk.pop3_port == 995 %}selected{% endif %}>995 (SSL)</option>
+                                <option value="993" {% if helpdesk.pop3_port == 993 %}selected{% endif %}>993 (SSL)</option>
+                                <option value="110" {% if helpdesk.pop3_port == 110 %}selected{% endif %}>110 (No SSL)</option>
+                                <option value="143" {% if helpdesk.pop3_port == 143 %}selected{% endif %}>143 (TLS)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Encriptación *</strong></label>
+                            <select name="pop3_encryption" class="form-select" required>
+                                <option value="ssl" {% if helpdesk.pop3_encryption == 'ssl' %}selected{% endif %}>SSL</option>
+                                <option value="tls" {% if helpdesk.pop3_encryption == 'tls' %}selected{% endif %}>TLS</option>
+                                <option value="" {% if not helpdesk.pop3_encryption %}selected{% endif %}>Ninguna</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <hr/>
+                    
+                    <h6 class="text-warning mb-3">🔐 Contraseña de Acceso</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Contraseña POP3 *</strong></label>
+                            <input type="password" name="pop3_password" class="form-control" data-mask-password required>
+                            <small class="text-muted d-block">Para acceder al buzón y leer nuevos tickets</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Confirmar Contraseña POP3 *</strong></label>
+                            <input type="password" id="confirm_pop3_password" class="form-control" data-mask-password required>
+                            <small class="text-muted d-block">Confirma que escribiste correctamente la contraseña</small>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            
+            {# ===== CONFIGURACIÓN SMTP ===== #}
+            <div class="card card-outline-success mt-3 email_config_detail" 
+                 style="{% if not helpdesk.enable_email %}display:none;{% endif %}">
+                
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">✉️ Configuración SMTP (Enviar Respuestas)</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <div class="alert alert-info small mb-3">
+                        <strong>Importante:</strong> Para que las respuestas salgan desde el mismo correo donde se recibe, <strong>usa estas mismas credenciales</strong> o las del servidor de correo oficial.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Host SMTP *</strong></label>
+                            <input type="text" name="smtp_host" class="form-control" 
+                                   value="{{ helpdesk.smtp_host ?? '' }}" 
+                                   placeholder="mail.tudominio.com" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Puerto SMTP *</strong></label>
+                            <select name="smtp_port" class="form-select" required>
+                                <option value="25" {% if helpdesk.smtp_port == 25 %}selected{% endif %}>25</option>
+                                <option value="465" {% if helpdesk.smtp_port == 465 %}selected{% endif %}>465 (SSL)</option>
+                                <option value="587" {% if helpdesk.smtp_port == 587 %}selected{% endif %}>587 (TLS)</option>
+                                <option value="2525" {% if helpdesk.smtp_port == 2525 %}selected{% endif %}>2525</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Encriptación</strong></label>
+                            <select name="smtp_encryption" class="form-select" required>
+                                <option value="" {% if not helpdesk.smtp_encryption %}selected{% endif %}>None</option>
+                                <option value="ssl" {% if helpdesk.smtp_encryption == 'ssl' %}selected{% endif %}>SSL</option>
+                                <option value="tls" {% if helpdesk.smtp_encryption == 'tls' %}selected{% endif %}>TLS</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Usuario SMTP *</strong></label>
+                            <input type="text" name="smtp_user" class="form-control" 
+                                   value="{{ helpdesk.smtp_user ?? helpdesk.email_address ?? '' }}" 
+                                   required>
+                            <small class="text-muted d-block">Generalmente es el mismo email de soporte</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Contraseña SMTP *</strong></label>
+                            <input type="password" name="smtp_pass" class="form-control" data-mask-password required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><strong>Nombre Remitente</strong></label>
+                            <input type="text" name="from_name" class="form-control" 
+                                   value="{{ helpdesk.name ?? '' }}" 
+                                   placeholder="{{ helpdesk.name ?? 'Soporte Técnico' }}">
+                        </div>
+                    </div>
+                    
+                    {# ===== BOTÓN PRUEBA CONEXIÓN ===== #}
+                    <div class="mt-4 pt-3 border-top">
+                        <div class="row g-3 align-items-end mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>Para:</strong></label>
+                                <input type="email" name="test_email" class="form-control" id="persist_test_email" placeholder="tu@email.com">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>Asunto:</strong></label>
+                                <input type="text" name="subject" class="form-control" id="persist_subject" placeholder="Prueba Email Gateway">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label"><strong>Cuerpo:</strong></label>
+                                <textarea name="body" class="form-control" id="persist_body" rows="1" placeholder="Mensaje..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-warning btn-lg w-100" onclick="testEmailConnection()">
+                            🧪 Probar Conexión Ahora
+                        </button>
+                        <span id="test_results" class="d-block mt-2 text-center"></span>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+                
+        {# ===== SECCIÓN CONTROL DE ACCESO ===== #}
+        <hr class="my-4">
+        <h5 class="text-primary mb-3">🔐 Control de Acceso y Seguridad</h5>
+        
+        <div class="card card-outline-warning email_security_detail border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">📌 Nivel de Accesibilidad de la Mesa</h6>
+            </div>
+            
+            <div class="card-body">
+                
+                <label class="form-label"><strong>Tipo de Acceso al Soporte *</strong></label>
+                <select class="form-select mb-3" name="access_level" id="accessLevelSelector">
+                    {% set selected_value = helpdesk.access_level|default('public') %}
+                    
+                    <option value="public" {% if selected_value == 'public' %}selected{% endif %}>
+                        ☑️ Público - Cualquier correo puede abrir ticket
+                    </option>
+                    <option value="clients" {% if selected_value == 'clients' %}selected{% endif %}>
+                        👤 Solo Clientes Registrados
+                    </option>
+                    <option value="staff" {% if selected_value == 'staff' %}selected{% endif %}>
+                        🛠️ Solo Personal Autorizado
+                    </option>
+                    <option value="hybrid" {% if selected_value == 'hybrid' %}selected{% endif %}>
+                        🔀 Mixto Público + Clientes
+                    </option>
+                </select>
+                
+                <div id="accessMessage" class="alert alert-info small mb-3" style="display:none;"></div>
+                
+                <div id="staffAccessDetails" style="{% if selected_value == 'staff' %}display:block;{% else %}display:none;{% endif %}">
+                    <h6 class="text-success mt-3 mb-2">✉️ Personal Autorizado para Esta Mesa</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Emails Autorizados (separados por coma)</strong></label>
+                        <textarea class="form-control" name="authorized_users" rows="3" 
+                                  placeholder="ejemplo@cliente.com, otro@usuario.com">{{ helpdesk.authorized_users ?? '' }}</textarea>
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-3 border-top">
+                    <h6 class="text-danger mb-2">⚠️ Seguridad Extra</h6>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="require_verify" 
+                               name="require_email_verification" value="1"
+                               {% if helpdesk.require_email_verification %}checked{% endif %}>
+                        <label class="form-check-label" for="require_verify">
+                            <strong>Requerir verificación de email</strong>
+                            <div class="small text-muted ms-4">Enviar confirmación al primer ticket desde nuevo remitente</div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-top">
+                    <h6 class="text-info mb-2">🔧 Sistema de Filtrado de Correo</h6>
+                    <div class="mb-3 row">
+                        <label class="col-md-4 col-form-label">{{ 'Sistema'|trans }}</label>
+                        <div class="col-md-6">
+                            <select name="filter_system" class="form-select">
+                                <option value="sieve" {% if helpdesk.filter_system|default('sieve') == 'sieve' %}selected{% endif %}>Sieve (ManageSieve) - Recomendado</option>
+                                <option value="spamassassin" {% if helpdesk.filter_system|default('sieve') == 'spamassassin' %}selected{% endif %}>SpamAssassin</option>
+                                <option value="none" {% if helpdesk.filter_system|default('sieve') == 'none' %}selected{% endif %}>Ninguno (no recomendado)</option>
+                            </select>
+                            <small class="text-muted d-block">{{ 'Sieve filtra antes del buzón. SpamAssassin analiza contenido.'|trans }}</small>
+                        </div>
+                    </div>
+                </div>
+
+                {% if helpdesk.access_level != 'staff' %}
+                <hr class="my-4 mt-4">
+                <h6 class="text-success mb-3">👥 Personal Asignado a Esta Mesa</h6>
+
+                <label class="form-label"><strong>Usuarios de Soporte Que Atienden Esta Mesa *</strong></label>
+
+                {% if helpdesk.admin_staff_pairs is defined and helpdesk.admin_staff_pairs|length > 0 %}
+                    {% set assigned_ids_array = [] %}
+                    {% if helpdesk.assigned_staff and helpdesk.assigned_staff != "" %}
+                        {% set assigned_ids_array = helpdesk.assigned_staff|split(",") %}
+                    {% endif %}
+
+                    <select name="assigned_staff[]" class="form-select" multiple size="6">
+                    {% for id, member in helpdesk.admin_staff_pairs %}
+                        {% if member.role|default('') != 'cron' and member.status|default('active') == 'active' %}
+                            {% set isSelected = false %}
+                            {% for assigned_id in assigned_ids_array %}
+                                {% if assigned_id == id %}{% set isSelected = true %}{% endif %}
+                            {% endfor %}
+                            <option value="{{ id }}" {% if isSelected %}selected{% endif %}>
+                                {{ member.name }} &lt;{{ member.email }}&gt;
+                                {% if member.role == 'admin' %}[Admin]{% endif %}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                    </select>
+
+                    <small class="text-muted d-block">Selecciona usuarios para asignar a esta mesa</small>
+
+                    <div class="mt-2 p-2 bg-light rounded border" style="min-height: 40px;">
+                        {% set has_visible = false %}
+                        {% for assigned_id in assigned_ids_array %}
+                            {% if helpdesk.admin_staff_pairs[assigned_id] is defined %}
+                                {% set member = helpdesk.admin_staff_pairs[assigned_id] %}
+                                {% if member.role|default('') != 'cron' and member.status|default('active') == 'active' %}
+                                    {% set has_visible = true %}
+                                    <span class="badge bg-primary text-white m-1">
+                                        {{ member.name }}{% if member.role == 'admin' %}[Admin]{% endif %}
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if not has_visible %}
+                            <span class="text-muted small fst-italic">Ningún staff asignado actualmente</span>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning mb-3">
+                        <strong>⚠️ No se encontraron usuarios activos</strong>
+                        <small>Crea usuarios desde Sistema → Staff</small>
+                    </div>
+                    <select name="assigned_staff[]" class="form-select" multiple size="6" disabled>
+                        <option value="">Configurar usuarios primero</option>
+                    </select>
+                    <div class="mt-2 p-2 bg-light rounded border" style="min-height: 40px;">
+                        <span class="text-muted small fst-italic">Ningún staff asignado actualmente</span>
+                    </div>
+                {% endif %}
+                {% endif %}
+
+                <div class="alert alert-info small mt-3 mb-0">
+                    <strong>📋 Reglas de Visibilidad:</strong>
+                    <ul class="mb-0 small">
+                        <li>✅ <strong>Administradores:</strong> Ven TODAS las mesas y tickets del sistema</li>
+                        <li>🛡️ <strong>Staff asignado:</strong> Solo ven tickets de MESAS donde están listados</li>
+                        <li>🔒 <strong>Clientes:</strong> Solo ven sus propios tickets en sus mesas permitidas</li>
+                    </ul>
+                </div>
+                
+            </div>
+        </div>
+        
+        <input type="hidden" name="id" value="{{ helpdesk.id }}">
+        
+        <div class="card-footer d-flex justify-content-between">
+            <div>
+                <a href="{{ 'extension/settings/support'|url }}" class="btn btn-secondary">
+                    <svg class="icon"><use xlink:href="#arrow-sm-left" /></svg>
+                    {{ 'Go Back'|trans }}
+                </a>
+                <a class="btn btn-icon btn-danger"
+                   href="{{ 'support/helpdesk_delete'|api_url(query: { 'id': helpdesk.id }) }}"
+                   {{ fb_api_link({ message: 'Are you sure?'|trans, modal: {type: 'confirm', title: 'Delete'|trans}, redirect: 'extension/settings/support'|url }) }}>
+                    <svg class="icon"><use xlink:href="#delete" /></svg>
+                </a>
+            </div>
+
+            <button class="btn btn-primary" type="submit">{{ 'Update'|trans }}</button>
+        </div>
+        
+    </form>
+</div>
+
+<div class="card mt-4" id="install-section" style="display:none;">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">⚠️ {{ 'Instalación de Tablas de Soporte'|trans }}</h5>
+    </div>
+    <div class="card-body">
+        <div id="install-status"></div>
+        <div id="install-details" style="display:none;">
+            <div class="alert alert-danger">
+                <strong>⚠️ {{ '¡ADVERTENCIA!'|trans }}</strong><br>
+                {{ 'Este proceso modificará la base de datos. Asegúrese de tener una copia de seguridad completa antes de continuar.'|trans }}
+            </div>
+            <div id="missing-info"></div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="confirm-backup">
+                <label class="form-check-label" for="confirm-backup">
+                    <strong>{{ 'Confirmo que tengo copia de seguridad de mis archivos y base de datos.'|trans }}</strong>
+                </label>
+            </div>
+            <button class="btn btn-danger" id="btn-install" disabled onclick="installTables()">
+                {{ 'Instalar Tablas'|trans }}
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const enableCheck = document.getElementById('helpdesk_enable_email_check');
+    const detailSections = document.querySelectorAll('.email_config_detail');
+    
+    function toggleEmailFields(isEnabled) {
+        detailSections.forEach(function(section) {
+            section.style.display = isEnabled ? 'block' : 'none';
+        });
+    }
+    
+    if (enableCheck) {
+        if (enableCheck.checked) toggleEmailFields(true);
+        enableCheck.addEventListener('change', function() { toggleEmailFields(this.checked); });
+    }
+
+    const selector = document.getElementById('accessLevelSelector');
+    const messageDiv = document.getElementById('accessMessage');
+    const staffDetails = document.getElementById('staffAccessDetails');
+    
+    const messages = {
+        'public': '<strong>☑️ Público:</strong> Cualquier correo electrónico externo puede crear tickets en esta mesa.',
+        'clients': '<strong>👤 Clientes:</strong> Solo usuarios registrados en FOSSBilling pueden crear tickets.',
+        'staff': '<strong>🛠️ Personal:</strong> Solo usuarios autorizados abajo pueden enviar tickets a esta mesa.',
+        'hybrid': '<strong>🔀 Mixto:</strong> Tanto clientes públicos como registrados pueden acceder.'
+    };
+    
+    function updateAccessMessage() {
+        if (!selector) return;
+        const value = selector.value;
+        if (messages[value]) { messageDiv.innerHTML = messages[value]; messageDiv.style.display = 'block'; }
+        staffDetails.style.display = (value === 'staff') ? 'block' : 'none';
+    }
+    
+    updateAccessMessage();
+    if (selector) selector.addEventListener('change', updateAccessMessage);
+
+    checkTables();
+});
+
+function testEmailConnection() {
+    const helpdeskIdInput = document.querySelector('input[name="id"]');
+    if (!helpdeskIdInput || !helpdeskIdInput.value.trim()) {
+        alert('⚠️ Primero guarda la configuración del HelpDesk.');
+        return false;
+    }
+    
+    const form = document.querySelector('form');
+    const formData = new FormData(form);
+    const resultsDiv = document.getElementById('test_results');
+    const payload = Object.fromEntries(formData.entries());
+    payload.id = helpdeskIdInput.value;
+    
+    resultsDiv.innerHTML = '<div class="alert alert-info py-2"><span class="spinner-border spinner-border-sm me-2"></span>Verificando conexión...</div>';
+    
+    fetch('{{ "support/email_gateway_test"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        let result = data.result || data;
+        const isSuccess = result.success ?? false;
+        const message = result.message || (isSuccess ? 'Conexión exitosa' : 'Fallo');
+        const msgCount = result.messages_in_inbox || 0;
+        const smtpStatus = result.smtp_status || 'N/A';
+        
+        let html = '<div class="alert ' + (isSuccess ? 'alert-success' : 'alert-danger') + ' py-3 px-4 mt-2">';
+        html += '<strong>' + (isSuccess ? '✅ Éxito!' : '❌ Error:') + '</strong> ' + message;
+        html += '<br><small>POP3: ' + msgCount + ' mensajes | SMTP: ' + smtpStatus + '</small>';
+        html += '</div>';
+        
+        resultsDiv.innerHTML = html;
+        setTimeout(function() { resultsDiv.innerHTML = ''; }, 15000);
+    })
+    .catch(error => {
+        resultsDiv.innerHTML = '<div class="alert alert-danger py-2">Error de conexión: ' + error.message + '</div>';
+    });
+    
+    return false;
+}
+
+function checkTables() {
+    fetch('{{ "support/check_and_install_tables"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({CSRFToken: '{{ CSRFToken }}'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        const result = data.result || data;
+        if (result.needs_install) {
+            document.getElementById('install-section').style.display = 'block';
+            document.getElementById('install-details').style.display = 'block';
+            let info = '<ul>';
+            if (result.missing_tables.length > 0) info += '<li>{{ "Tablas faltantes:"|trans }} ' + result.missing_tables.join(', ') + '</li>';
+            if (result.missing_columns.length > 0) info += '<li>{{ "Columnas faltantes en support_helpdesk:"|trans }} ' + result.missing_columns.join(', ') + '</li>';
+            if (result.missing_pticket_column) info += '<li>{{ "Columna support_helpdesk_id faltante en support_p_ticket"|trans }}</li>';
+            info += '</ul>';
+            document.getElementById('missing-info').innerHTML = info;
+            document.getElementById('install-status').innerHTML = '<div class="alert alert-warning">{{ "Se requieren actualizaciones en la base de datos."|trans }}</div>';
+        } else {
+            document.getElementById('install-section').style.display = 'block';
+            document.getElementById('install-status').innerHTML = '<div class="alert alert-success">{{ "✅ Todas las tablas y columnas están instaladas correctamente."|trans }}</div>';
+        }
+    });
+}
+
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'confirm-backup') {
+        document.getElementById('btn-install').disabled = !e.target.checked;
+    }
+});
+
+function installTables() {
+    if (!confirm('{{ "¿Está SEGURO? Esta operación modificará la base de datos."|trans }}')) return;
+    
+    document.getElementById('btn-install').disabled = true;
+    document.getElementById('btn-install').innerHTML = '{{ "Instalando..."|trans }}';
+    
+    fetch('{{ "support/install_support_tables"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({confirm: 'YES_I_HAVE_BACKUP', CSRFToken: '{{ CSRFToken }}'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        const result = data.result || data;
+        if (result.success) {
+            document.getElementById('install-status').innerHTML = '<div class="alert alert-success">{{ "✅ "|trans }}' + result.message + '</div>';
+            document.getElementById('install-details').style.display = 'none';
+        } else {
+            document.getElementById('install-status').innerHTML = '<div class="alert alert-danger">{{ "❌ "|trans }}' + (result.message || 'Error') + '</div>';
+        }
+        document.getElementById('btn-install').disabled = false;
+        document.getElementById('btn-install').innerHTML = '{{ "Instalar Tablas"|trans }}';
+    });
+}
+</script>
+{% endblock %}

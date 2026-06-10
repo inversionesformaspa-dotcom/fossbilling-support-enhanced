@@ -1,0 +1,209 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{# modules/Support/templates/admin/mod_support_blacklist.html.twig #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+{% import 'macro_functions.html.twig' as mf %}
+
+{% set active_menu = 'support' %}
+
+{% block meta_title %}{{ 'Email Blacklist'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+    <li class="breadcrumb-item">
+        <a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home"/></svg></a>
+    </li>
+    <li class="breadcrumb-item">
+        <a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{{ 'Email Blacklist'|trans }}</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">🚫 {{ 'Email Blacklist'|trans }}</h3>
+            <p class="card-subtitle">
+                {{ 'Correos bloqueados permanentemente. Se descartan antes de cualquier otra regla.'|trans }}
+            </p>
+        </div>
+    </div>
+
+    <div class="card-body border-bottom pb-4">
+        <h5 class="mb-3">➕ {{ 'Agregar a lista negra'|trans }}</h5>
+
+        <form method="post"
+              action="{{ 'support/blacklist_add'|api_url }}"
+              {{ fb_api_form({ message: 'Email bloqueado correctamente'|trans, reload: true }) }}>
+            <input type="hidden" name="CSRFToken" value="{{ CSRFToken }}"/>
+
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">{{ 'Email *'|trans }}</label>
+                    <input type="email" name="email" class="form-control" placeholder="spam@ejemplo.com" required>
+                    <small>{{ 'Dirección a bloquear'|trans }}</small>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">{{ 'Mesa de Soporte'|trans }}</label>
+                    <select name="helpdesk_id" class="form-select">
+                        <option value="">🌐 {{ 'Global — todas las mesas'|trans }}</option>
+                        {% if helpdesks is defined and helpdesks|length > 0 %}
+                            {% for hd in helpdesks %}
+                            <option value="{{ hd.id }}">{{ hd.name }} ({{ hd.email_address }})</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                    <small>{{ 'Global bloquea en todas las mesas'|trans }}</small>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">{{ 'Motivo'|trans }}</label>
+                    <input type="text" name="reason" class="form-control" placeholder="{{ 'Spam, abuso, etc.'|trans }}">
+                    <small>{{ 'Opcional'|trans }}</small>
+                </div>
+
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-danger w-100">
+                        <svg class="icon me-1"><use xlink:href="#ban"/></svg>
+                        {{ 'Bloquear Email'|trans }}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="card-body">
+        <h5 class="mb-3">📋 {{ 'Emails bloqueados'|trans }}</h5>
+
+        {% if items is defined and items|length > 0 %}
+        <div class="mb-3">
+            <input type="text" id="bl-search" class="form-control"
+                   placeholder="🔍 {{ 'Buscar por email, mesa o motivo...'|trans }}"
+                   oninput="filterBlacklist(this.value)">
+        </div>
+
+        <table class="table card-table table-vcenter table-striped" id="bl-table">
+            <thead>
+                <tr>
+                    <th>{{ 'Email bloqueado'|trans }}</th>
+                    <th>{{ 'Alcance'|trans }}</th>
+                    <th>{{ 'Motivo'|trans }}</th>
+                    <th>{{ 'Bloqueado el'|trans }}</th>
+                    <th class="w-1">{{ 'Acción'|trans }}</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+                <tr data-search="{{ item.email|lower }} {{ (item.helpdesk_name ?? '')|lower }} {{ (item.reason ?? '')|lower }}">
+                    <td><span class="fw-semibold">🚫 {{ item.email }}</span></td>
+                    <td>
+                        {% if item.helpdesk_id %}
+                            <span class="badge" style="background-color:#e67e22;color:#fff;">{{ item.helpdesk_name ?? 'Mesa #' ~ item.helpdesk_id }}</span>
+                        {% else %}
+                            <span class="badge" style="background-color:#c0392b;color:#fff;">🌐 {{ 'Global'|trans }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.reason ?? '—' }}</td>
+                    <td><small>{{ item.created_at }}</small></td>
+                    <td>
+                        <a class="btn btn-icon btn-danger"
+                           href="{{ 'support/blacklist_remove'|api_url(query: { 'id': item.id }) }}"
+                           {{ fb_api_link({ message: 'Are you sure?'|trans, modal: {type: 'confirm', title: 'Desbloquear email'|trans}, reload: true }) }}
+                           title="{{ 'Desbloquear email'|trans }}">
+                            <svg class="icon"><use xlink:href="#delete"/></svg>
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <p class="mt-2"><small>{{ 'Total'|trans }}: <strong>{{ items|length }}</strong> {{ 'emails bloqueados'|trans }}</small></p>
+
+        {% else %}
+        <div class="empty">
+            <div class="empty-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="40" height="40"
+                     viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"
+                     fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <circle cx="12" cy="12" r="9"/>
+                    <line x1="5.7" y1="5.7" x2="18.3" y2="18.3"/>
+                </svg>
+            </div>
+            <p class="empty-title">{{ 'No hay emails bloqueados'|trans }}</p>
+            <p class="empty-subtitle">{{ 'Usa el formulario de arriba para bloquear correos no deseados.'|trans }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card-body border-top">
+        <h5 class="mb-3">💡 {{ 'Cómo funciona la lista negra'|trans }}</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left:3px solid #c0392b;">
+                    <div class="card-body">
+                        <h6 style="color:#c0392b;">🌐 {{ 'Bloqueo global'|trans }}</h6>
+                        <p class="small mb-0">{{ 'Si no seleccionas mesa, el email se bloquea en TODAS las mesas de soporte. Útil para spam recurrente.'|trans }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left:3px solid #e67e22;">
+                    <div class="card-body">
+                        <h6 style="color:#e67e22;">📮 {{ 'Bloqueo por mesa'|trans }}</h6>
+                        <p class="small mb-0">{{ 'Selecciona una mesa específica para bloquear el email solo en esa mesa.'|trans }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left:3px solid #2980b9;">
+                    <div class="card-body">
+                        <h6 style="color:#2980b9;">⚡ {{ 'Aplicación inmediata'|trans }}</h6>
+                        <p class="small mb-0">{{ 'Al agregar o eliminar un email, los filtros Sieve se actualizan automáticamente via ManageSieve.'|trans }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="alert alert-warning mt-3 mb-0">
+            ⚠️ <strong>{{ 'Prioridad de reglas'|trans }}:</strong>
+            {{ 'Lista negra > Whitelist manual > Clientes/Staff registrados > Regla de acceso general.'|trans }}
+        </div>
+        <div class="alert alert-info mt-3 small">
+    	<svg class="icon me-1"><use xlink:href="#info"/></svg>
+    	<strong>{{ 'Importante'|trans }}:</strong>
+    	{{ 'Los cambios en esta lista actualizan automáticamente los filtros Sieve (y SpamAssassin si está configurado). No es necesario reiniciar nada.'|trans }}
+	</div>
+    </div>
+</div>
+
+<script>
+function filterBlacklist(query) {
+    const q = query.toLowerCase().trim();
+    document.querySelectorAll('#bl-table tbody tr').forEach(function(row) {
+        const text = (row.dataset.search || '').toLowerCase();
+        row.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

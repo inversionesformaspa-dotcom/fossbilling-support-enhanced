@@ -1,0 +1,253 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{# modules/Support/templates/admin/mod_support_spamassassin.html.twig #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+{% import 'macro_functions.html.twig' as mf %}
+
+{% set active_menu = 'support' %}
+
+{% block meta_title %}{{ 'SpamAssassin Configuration'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+    <li class="breadcrumb-item">
+        <a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home"/></svg></a>
+    </li>
+    <li class="breadcrumb-item">
+        <a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{{ 'SpamAssassin Configuration'|trans }}</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-3">
+    <div class="d-flex align-items-start gap-3">
+        <span class="fs-3">🛡️</span>
+        <div>
+            <strong>{{ '¿Qué es SpamAssassin?'|trans }}</strong><br>
+            {{ 'SpamAssassin es un filtro de correo que analiza el contenido de los mensajes y asigna puntuaciones. Los correos con puntuación alta son rechazados por Dovecot. Las reglas se actualizan automáticamente al modificar la whitelist/blacklist.'|trans }}
+        </div>
+    </div>
+</div>
+
+{% if not available %}
+<div class="alert alert-warning mb-3">
+    <div class="d-flex align-items-start gap-3">
+        <span class="fs-3">⚠️</span>
+        <div>
+            <strong>{{ 'SpamAssassin no detectado'|trans }}</strong><br>
+            {{ 'SpamAssassin no está instalado en este servidor. Para usarlo, instálalo con:'|trans }}<br>
+            <code>apt-get install spamassassin spamc</code><br>
+            <span class="small">{{ 'Alternativamente, puedes usar'|trans }} <a href="{{ 'support/sieve'|url }}">Sieve (ManageSieve)</a>.</span>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-success mb-3">
+    <div class="d-flex align-items-start gap-3">
+        <span class="fs-3">✅</span>
+        <div>
+            <strong>{{ 'SpamAssassin detectado'|trans }}</strong><br>
+            {{ 'Versión'|trans }}: <code>{{ version }}</code>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">🔧 {{ 'Estado de reglas SpamAssassin'|trans }}</h3>
+            <p class="card-subtitle">
+                {{ 'Mesas de soporte con recepción de email habilitada.'|trans }}
+            </p>
+        </div>
+        {% if available %}
+        <div class="card-options">
+            <button type="button" class="btn btn-warning" onclick="resetSpamAssassin(this)">
+                <svg class="icon me-1"><use xlink:href="#refresh"/></svg>
+                {{ 'Reiniciar reglas'|trans }}
+            </button>
+            <span id="sa-reset-result" class="ms-2"></span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if accounts is defined and accounts|length > 0 %}
+    <table class="table card-table table-vcenter table-striped">
+        <thead>
+            <tr>
+                <th>{{ 'Mesa de Soporte'|trans }}</th>
+                <th>{{ 'Cuenta de correo'|trans }}</th>
+                <th class="text-center">{{ 'Reglas SpamAssassin'|trans }}</th>
+                <th>{{ 'Última actualización'|trans }}</th>
+                <th class="text-center">{{ 'Sistema activo'|trans }}</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for key, acc in accounts %}
+            <tr>
+                <td><strong>{{ acc.helpdesk_name ?? 'Sin nombre' }}</strong></td>
+                <td>{{ acc.email ?? '—' }}</td>
+                <td class="text-center">
+                    {% if acc.has_spamassassin %}
+                        <span class="badge bg-success">✅ {{ 'Activo'|trans }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">⚠️ {{ 'Sin reglas'|trans }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ acc.updated_at ?? '—' }}</td>
+                <td class="text-center">
+                    <span class="badge bg-purple">SpamAssassin</span>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="card-footer">
+        <small class="text-muted">
+            {{ 'Total'|trans }}: <strong>{{ accounts|length }}</strong> {{ 'cuentas'|trans }}
+        </small>
+    </div>
+    {% else %}
+    <div class="card-body">
+        <div class="empty">
+            <p class="empty-title">{{ 'No hay mesas con email habilitado'|trans }}</p>
+            <p class="empty-subtitle text-muted">
+                {{ 'Habilita la recepción de email en alguna mesa de soporte para ver las reglas SpamAssassin.'|trans }}
+            </p>
+            <div class="empty-action">
+                <a href="{{ 'support/helpdesks'|url }}" class="btn btn-primary">
+                    {{ 'Ir a Mesas de Soporte'|trans }}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h4 class="card-title">💡 {{ 'Cómo funciona SpamAssassin'|trans }}</h4>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left: 3px solid #2fb344;">
+                    <div class="card-body">
+                        <h6 style="color: #2fb344;">✅ {{ 'Correos aceptados'|trans }}</h6>
+                        <ul class="mb-0 small">
+                            <li>{{ 'Emails en whitelist (puntuación -100)'|trans }}</li>
+                            <li>{{ 'Clientes registrados (mesas clients)'|trans }}</li>
+                            <li>{{ 'Staff asignado (mesas staff)'|trans }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left: 3px solid #d63939;">
+                    <div class="card-body">
+                        <h6 style="color: #d63939;">🚫 {{ 'Correos rechazados'|trans }}</h6>
+                        <ul class="mb-0 small">
+                            <li>{{ 'Emails en blacklist (puntuación +100)'|trans }}</li>
+                            <li>{{ 'Auto-reply / Out of Office (+50)'|trans }}</li>
+                            <li>{{ 'Mailer Daemon (+50)'|trans }}</li>
+                            <li>{{ 'No clientes en mesas "clients" (+100)'|trans }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left: 3px solid #4299e1;">
+                    <div class="card-body">
+                        <h6 style="color: #4299e1;">⚙️ {{ 'Configuración'|trans }}</h6>
+                        <ul class="mb-0 small">
+                            <li>{{ 'Archivo: ~/spamassassin/user_prefs'|trans }}</li>
+                            <li>{{ 'Puntuación mínima: 5.0'|trans }}</li>
+                            <li>{{ 'Las reglas se regeneran al modificar whitelist/blacklist'|trans }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h6>{{ 'Comparación Sieve vs SpamAssassin'|trans }}</h6>
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>{{ 'Característica'|trans }}</th><th>Sieve</th><th>SpamAssassin</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>{{ 'Rechazo antes del buzón'|trans }}</td><td><span class="text-success">✅</span></td><td><span class="text-warning">⚠️ Requiere configuración Dovecot</span></td></tr>
+                    <tr><td>{{ 'Análisis de contenido'|trans }}</td><td><span class="text-danger">❌</span></td><td><span class="text-success">✅ Avanzado</span></td></tr>
+                    <tr><td>{{ 'Facilidad de configuración'|trans }}</td><td><span class="text-success">✅ ManageSieve</span></td><td><span class="text-warning">⚠️ Archivos manuales</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+{% if available %}
+<script>
+function resetSpamAssassin(btn) {
+    if (!confirm('{{ '¿Reiniciar todas las reglas SpamAssassin? Esto sobrescribirá la configuración actual.'|trans }}')) {
+        return;
+    }
+
+    const resultSpan = document.getElementById('sa-reset-result');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> {{ 'Procesando...'|trans }}';
+    resultSpan.innerHTML = '';
+
+    fetch('{{ "support/spamassassin_reset"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({CSRFToken: '{{ CSRFToken }}'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon me-1"><use xlink:href="#refresh"/></svg> {{ 'Reiniciar reglas'|trans }}';
+
+        if (data.error) {
+            resultSpan.innerHTML = '<span class="text-danger">❌ ' + (data.error.message ?? JSON.stringify(data.error)) + '</span>';
+            return;
+        }
+
+        if (data.result === true || data.result > 0) {
+            resultSpan.innerHTML = '<span class="text-success">✅ {{ 'Reglas actualizadas correctamente'|trans }} (' + data.result + ' {{ 'cuentas'|trans }})</span>';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            resultSpan.innerHTML = '<span class="text-warning">⚠️ {{ 'Sin cuentas procesadas'|trans }}</span>';
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon me-1"><use xlink:href="#refresh"/></svg> {{ 'Reiniciar reglas'|trans }}';
+        resultSpan.innerHTML = '<span class="text-danger">❌ ' + err.message + '</span>';
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

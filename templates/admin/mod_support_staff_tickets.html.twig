@@ -1,0 +1,199 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% import 'macro_functions.html.twig' as mf %}
+
+{% block meta_title %}{{ 'Staff Tickets'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+    <ul class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home" /></svg></a></li>
+        <li class="breadcrumb-item"><a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Staff Tickets'|trans }}</li>
+    </ul>
+{% endblock %}
+
+{% set active_menu = 'support' %}
+
+{% block content %}
+<div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center justify-content-between">
+        <div>
+            <h3 class="card-title mb-0">{{ 'Staff Tickets'|trans }}</h3>
+            <p class="text-muted mb-0">{{ 'Tickets generados por miembros del staff o consultas internas.'|trans }}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{{ 'support'|url }}" class="btn btn-secondary btn-sm">{{ 'Client Tickets'|trans }}</a>
+            <a href="{{ 'support/public-tickets'|url }}" class="btn btn-secondary btn-sm">{{ 'Public Tickets'|trans }}</a>
+        </div>
+    </div>
+</div>
+
+{# CONTADORES #}
+{% set statuses = admin.support_staff_ticket_get_statuses %}
+<section class="row row-cards mb-3">
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|url(query: { 'status': 'open' }) }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-danger text-white avatar">{{ statuses.open }}</span></div>
+                    <div class="col"><div class="font-weight-medium">{{ 'Open'|trans }}</div></div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|url(query: { 'status': 'on_hold' }) }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-warning text-white avatar">{{ statuses.on_hold }}</span></div>
+                    <div class="col"><div class="font-weight-medium">{{ 'On Hold'|trans }}</div></div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|url(query: { 'status': 'closed' }) }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-secondary text-white avatar">{{ statuses.closed }}</span></div>
+                    <div class="col"><div class="font-weight-medium">{{ 'Closed'|trans }}</div></div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <a class="card card-sm card-link" href="{{ 'support/staff-tickets'|url }}">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-auto"><span class="bg-blue text-white avatar">{{ statuses.total }}</span></div>
+                    <div class="col"><div class="font-weight-medium">{{ 'Total'|trans }}</div></div>
+                </div>
+            </div>
+        </a>
+    </div>
+</section>
+
+{# BUSCADOR #}
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" action="{{ 'support/staff-tickets'|url }}" class="row g-2">
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control" placeholder="{{ 'Buscar...'|trans }}" value="{{ request.search }}">
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">{{ 'Todos'|trans }}</option>
+                    <option value="open" {% if request.status == 'open' %}selected{% endif %}>{{ 'Open'|trans }}</option>
+                    <option value="on_hold" {% if request.status == 'on_hold' %}selected{% endif %}>{{ 'On Hold'|trans }}</option>
+                    <option value="closed" {% if request.status == 'closed' %}selected{% endif %}>{{ 'Closed'|trans }}</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary">{{ 'Filtrar'|trans }}</button>
+                <a href="{{ 'support/staff-tickets'|url }}" class="btn btn-outline-secondary">{{ 'Limpiar'|trans }}</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# TABLA #}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table table-striped">
+            <thead>
+                <tr>
+                    <th class="w-1 no-sort">
+                        <input class="form-check-input m-0 align-middle batch-delete-master-checkbox" type="checkbox">
+                    </th>
+                    <th>{{ 'ID'|trans }}</th>
+                    <th>{{ 'Subject'|trans }}</th>
+                    <th>{{ 'Helpdesk'|trans }}</th>
+                    <th>{{ 'Status'|trans }}</th>
+                    <th>{{ 'Updated'|trans }}</th>
+                    <th class="w-1"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set tickets = admin.support_staff_ticket_get_list({ 'per_page': 30 }) %}
+                {% if tickets.list is not empty %}
+                    {% for ticket in tickets.list %}
+                    <tr>
+                        <td>
+                            <input class="form-check-input m-0 align-middle batch-delete-checkbox" type="checkbox" data-item-id="{{ ticket.id }}">
+                        </td>
+                        <td><span class="badge bg-blue-lt">#{{ ticket.id }}</span></td>
+                        <td><a href="{{ 'support/staff-ticket'|url }}/{{ ticket.id }}">{{ ticket.subject|truncate(50) }}</a></td>
+                        <td><span class="text-muted small">{{ ticket.helpdesk.name ?? ticket.helpdesk_name ?? ('#' ~ ticket.support_helpdesk_id) }}</span></td>
+                        <td>{{ mf.status_badge(ticket.status, 'ticket') }}</td>
+                        <td><span class="text-muted small">{{ ticket.updated_at|timeago }} {{ 'ago'|trans }}</span></td>
+                        <td>
+                            <a href="{{ 'support/staff-ticket'|url }}/{{ ticket.id }}" class="btn btn-sm btn-outline-primary" title="{{ 'Ver'|trans }}">
+                                <svg class="icon"><use xlink:href="#eye"/></svg>
+                            </a>
+                            <a class="btn btn-sm btn-outline-danger"
+                               href="{{ 'support/staff_ticket_delete'|api_url(query: { 'id': ticket.id }) }}"
+                               {{ fb_api_link({ message: '¿Eliminar este ticket?'|trans, modal: {type: 'confirm', title: 'Eliminar'|trans}, reload: true }) }}
+                               title="{{ 'Eliminar'|trans }}">
+                                <svg class="icon"><use xlink:href="#delete" /></svg>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <div class="empty">
+                                <div class="empty-icon">
+                                    <svg class="icon icon-tabler icon-tabler-ticket" width="48" height="48" 
+                                         viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" 
+                                         fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <line x1="15" y1="5" x2="15" y2="7"/>
+                                        <line x1="15" y1="11" x2="15" y2="13"/>
+                                        <line x1="15" y1="17" x2="15" y2="19"/>
+                                        <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2"/>
+                                    </svg>
+                                </div>
+                                <p class="empty-title">{{ 'No hay tickets de staff'|trans }}</p>
+                                <p class="empty-subtitle text-muted">
+                                    {% if request.status|default('') %}
+                                        {{ 'No se encontraron tickets con el filtro seleccionado.'|trans }}
+                                    {% else %}
+                                        {{ 'Los tickets creados por miembros del staff aparecerán aquí.'|trans }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% if tickets.list is not empty %}
+    <div class="card-footer d-flex align-items-center justify-content-between">
+        {{ include('partial_batch_delete.html.twig', { 'action': 'support/batch_delete_staff' }) }}
+        {% if tickets.pages is defined and tickets.pages > 1 %}
+            {{ include('partial_pagination.html.twig', { 'list': tickets, 'url': 'support/staff-tickets' }) }}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

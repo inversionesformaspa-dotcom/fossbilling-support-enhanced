@@ -1,0 +1,222 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{# modules/Support/templates/admin/mod_support_sieve.html.twig #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+{% import 'macro_functions.html.twig' as mf %}
+
+{% set active_menu = 'support' %}
+
+{% block meta_title %}{{ 'Sieve Configuration'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+    <li class="breadcrumb-item">
+        <a href="{{ '/'|url }}"><svg class="icon"><use xlink:href="#home"/></svg></a>
+    </li>
+    <li class="breadcrumb-item">
+        <a href="{{ 'support'|url }}">{{ 'Support'|trans }}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{{ 'Sieve Configuration'|trans }}</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info mb-3">
+    <div class="d-flex align-items-start gap-3">
+        <span class="fs-3">📖</span>
+        <div>
+            <strong>{{ '¿Qué es Sieve?'|trans }}</strong><br>
+            {{ 'Sieve es un lenguaje de filtrado de correo que corre en el servidor Dovecot. Permite aceptar, rechazar o redirigir mensajes antes de que lleguen al buzón. Los filtros se actualizan automáticamente al modificar la whitelist.'|trans }}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div>
+            <h3 class="card-title">🔧 {{ 'Estado de filtros Sieve'|trans }}</h3>
+            <p class="card-subtitle">
+                {{ 'Mesas de soporte con recepción de email habilitada.'|trans }}
+            </p>
+        </div>
+        <div class="card-options">
+            <button type="button" class="btn btn-warning" onclick="resetSieveFilters(this)">
+                <svg class="icon me-1"><use xlink:href="#refresh"/></svg>
+                {{ 'Reiniciar filtros básicos'|trans }}
+            </button>
+            <span id="sieve-reset-result" class="ms-2"></span>
+        </div>
+    </div>
+
+    {% set has_accounts = accounts is defined and accounts is not empty %}
+
+    {% if has_accounts %}
+    <table class="table card-table table-vcenter table-striped">
+        <thead>
+            <tr>
+                <th>{{ 'Mesa de Soporte'|trans }}</th>
+                <th>{{ 'Cuenta de correo'|trans }}</th>
+                <th>{{ 'Account ID'|trans }}</th>
+                <th class="text-center">{{ 'Archivo Sieve'|trans }}</th>
+                <th>{{ 'Última modificación'|trans }}</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for key, acc in accounts %}
+            <tr>
+                <td><strong>{{ acc.helpdesk_name ?? 'Sin nombre' }}</strong></td>
+                <td>{{ acc.email ?? '—' }}</td>
+                <td><code>{{ acc.account_id ?? '—' }}</code></td>
+                <td class="text-center">
+                    {% if acc.has_sieve %}
+                        <span class="badge bg-success text-white">✅ {{ 'Activo'|trans }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary text-white">⚠️ {{ 'Sin archivo'|trans }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ acc.updated_at ?? '—' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="card-footer">
+        <small class="text-muted">{{ 'Total'|trans }}: <strong>{{ accounts|length }}</strong> {{ 'cuentas'|trans }}</small>
+    </div>
+    {% else %}
+    <div class="card-body">
+        <div class="empty">
+            <p class="empty-title">{{ 'No hay mesas con email habilitado'|trans }}</p>
+            <p class="empty-subtitle text-muted">{{ 'Habilita la recepción de email en alguna mesa de soporte para ver los filtros Sieve.'|trans }}</p>
+            <div class="empty-action">
+                <a href="{{ 'support/helpdesks'|url }}" class="btn btn-primary">{{ 'Ir a Mesas de Soporte'|trans }}</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h4 class="card-title">💡 {{ 'Cómo funcionan los filtros'|trans }}</h4>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left: 3px solid #2fb344;">
+                    <div class="card-body">
+                        <h6 style="color: #2fb344;">✅ {{ 'Mensajes aceptados'|trans }}</h6>
+                        <ul class="mb-0 small">
+                            <li>{{ 'Emails en la whitelist de la mesa'|trans }}</li>
+                            <li>{{ 'Correos de administradores del sistema'|trans }}</li>
+                            <li>{{ 'Respuestas a tickets existentes'|trans }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left: 3px solid #d63939;">
+                    <div class="card-body">
+                        <h6 style="color: #d63939;">🚫 {{ 'Mensajes descartados'|trans }}</h6>
+                        <ul class="mb-0 small">
+                            <li>{{ 'Acuses de recibo de lectura'|trans }}</li>
+                            <li>{{ 'Notificaciones NDR / delivery'|trans }}</li>
+                            <li>{{ 'Respuestas automáticas (Out of Office)'|trans }}</li>
+                            <li>{{ 'Mailer Daemon'|trans }}</li>
+                            <li>{{ 'Emails no autorizados (mesas restringidas)'|trans }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-sm h-100" style="border-left: 3px solid #4299e1;">
+                    <div class="card-body">
+                        <h6 style="color: #4299e1;">🔄 {{ 'Actualización automática'|trans }}</h6>
+                        <p class="small mb-0">{{ 'Los filtros se regeneran al modificar la whitelist. El botón "Reiniciar" restaura solo los filtros anti-spam básicos sin tocar la whitelist.'|trans }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h6>{{ 'Ejemplo de archivo Sieve generado'|trans }}</h6>
+            <pre style="background:#f4f6fa;border:1px solid #ddd;border-radius:4px;padding:1rem;font-size:0.8rem;overflow-x:auto;white-space:pre-wrap;">require ["fileinto", "mailbox"];
+
+/* Filtros anti-spam básicos */
+if header :contains "Subject" "Acuse de recibo" { discard; }
+if header :contains "From" "Mailer Daemon" { discard; }
+
+/* Whitelist desde base de datos */
+if address :is "From" "cliente@ejemplo.com" { keep; }
+if address :is "From" "admin@hostelacion.com" { keep; }
+
+/* Descartar todo lo demás */
+discard;</pre>
+        </div>
+
+        <div class="alert alert-warning mt-3 mb-0">
+            ⚠️ <strong>{{ 'Nota sobre compilación'|trans }}:</strong>
+            {{ 'Si el servidor web no tiene permiso para ejecutar'|trans }} <code>sievec</code>
+            {{ '(función exec deshabilitada en php.ini), el archivo .sieve se guarda sin compilar. Dovecot puede interpretar archivos .sieve sin compilar dependiendo de su configuración.'|trans }}
+        </div>
+    </div>
+</div>
+
+<script>
+function resetSieveFilters(btn) {
+    if (!confirm('{{ '¿Reiniciar todos los filtros Sieve a configuración básica? Esto NO borra la whitelist.'|trans }}')) {
+        return;
+    }
+
+    const resultSpan = document.getElementById('sieve-reset-result');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> {{ 'Procesando...'|trans }}';
+    resultSpan.innerHTML = '';
+
+    fetch('{{ "support/sieve_reset"|api_url }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({CSRFToken: '{{ CSRFToken }}'})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon me-1"><use xlink:href="#refresh"/></svg> {{ 'Reiniciar filtros básicos'|trans }}';
+
+        if (data.error) {
+            resultSpan.innerHTML = '<span class="text-danger">❌ ' + (data.error.message ?? JSON.stringify(data.error)) + '</span>';
+            return;
+        }
+
+        if (data.result === true || data.result === 1) {
+            resultSpan.innerHTML = '<span class="text-success">✅ {{ 'Filtros actualizados correctamente'|trans }}</span>';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            resultSpan.innerHTML = '<span class="text-warning">⚠️ {{ 'Sin cuentas procesadas'|trans }}</span>';
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="icon me-1"><use xlink:href="#refresh"/></svg> {{ 'Reiniciar filtros básicos'|trans }}';
+        resultSpan.innerHTML = '<span class="text-danger">❌ ' + err.message + '</span>';
+    });
+}
+</script>
+{% endblock %}

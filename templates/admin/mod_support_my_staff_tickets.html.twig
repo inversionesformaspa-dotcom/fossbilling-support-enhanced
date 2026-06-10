@@ -1,0 +1,99 @@
+{# # Copyright (C) 2026 Víctor Fornés para Inversiones Forma SPA.
+# Contributions by DeepSeek AI, 2026.
+# 
+# This file is part of the FOSSBilling Support module.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>. #}
+
+{% extends request.ajax ? 'layout_blank.html.twig' : 'layout_default.html.twig' %}
+
+{% import 'macro_functions.html.twig' as mf %}
+
+{% block meta_title %}{{ 'Mis Consultas'|trans }}{% endblock %}
+
+{% block breadcrumbs %}
+    <ul class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ '/'|admin_link }}"><svg class="icon"><use xlink:href="#home" /></svg></a></li>
+        <li class="breadcrumb-item"><a href="{{ 'support'|admin_link }}">{{ 'Support'|trans }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ 'Mis Consultas'|trans }}</li>
+    </ul>
+{% endblock %}
+
+{% set active_menu = 'support' %}
+
+{% block content %}
+<div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center justify-content-between">
+        <div>
+            <h3 class="card-title mb-0">{{ 'Mis Consultas'|trans }}</h3>
+            <p class="text-muted mb-0">{{ 'Tus tickets y consultas al equipo de soporte.'|trans }}</p>
+        </div>
+        <div class="btn-group">
+            <a href="{{ 'support'|admin_link }}" class="btn btn-secondary btn-sm">{{ 'Client Tickets'|trans }}</a>
+            <a href="{{ 'support/staff-tickets'|admin_link }}" class="btn btn-secondary btn-sm">{{ 'Staff Tickets'|trans }}</a>
+        </div>
+    </div>
+</div>
+
+{# TABLA #}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table table-striped">
+            <thead>
+                <tr>
+                    <th>{{ 'ID'|trans }}</th>
+                    <th>{{ 'Subject'|trans }}</th>
+                    <th>{{ 'Helpdesk'|trans }}</th>
+                    <th>{{ 'Status'|trans }}</th>
+                    <th>{{ 'Updated'|trans }}</th>
+                    <th class="w-1"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set tickets = admin.support_my_staff_ticket_get_list({ 'per_page': 30 }) %}
+                {% if tickets.list is not empty %}
+                    {% for ticket in tickets.list %}
+                    <tr>
+                        <td><span class="badge bg-blue-lt">#{{ ticket.id }}</span></td>
+                        <td>{{ ticket.subject|truncate(50) }}</td>
+                        <td><span class="text-muted small">{{ ticket.helpdesk.name ?? ('#' ~ ticket.support_helpdesk_id) }}</span></td>
+                        <td>
+                            {% if ticket.status == 'open' %}<span class="badge bg-success text-white">{{ 'Open'|trans }}</span>
+                            {% elseif ticket.status == 'on_hold' %}<span class="badge bg-warning text-white">{{ 'On Hold'|trans }}</span>
+                            {% elseif ticket.status == 'closed' %}<span class="badge bg-secondary text-white">{{ 'Closed'|trans }}</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="text-muted small">{{ ticket.updated_at|timeago }} {{ 'ago'|trans }}</span></td>
+                        <td>
+                            <a href="{{ 'support/my-staff-ticket'|admin_link }}/{{ ticket.id }}" class="btn btn-sm btn-outline-primary">
+                                <svg class="icon"><use xlink:href="#eye"/></svg>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <div class="empty">
+                                <p class="empty-title">{{ 'No tienes consultas'|trans }}</p>
+                                <p class="empty-subtitle text-muted">{{ 'Tus tickets de consulta al equipo aparecerán aquí.'|trans }}</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
