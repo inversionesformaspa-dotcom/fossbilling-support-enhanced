@@ -165,6 +165,11 @@ Los correos desde iPhone llegan con caracteres extraños
 - **Contribuciones:** [DeepSeek AI](https://deepseek.com) (2026)
 
 El módulo se publica bajo la licencia GNU AGPL‑3.0.
+## ☕ Apoya este proyecto
+
+Si este módulo te resulta útil, puedes invitarme a un café a través de PayPal:  
+[https://paypal.me/inversionesformaspa](https://paypal.me/inversionesformaspa)  
+¡Cualquier apoyo es bienvenido! 🙏
 
 🤝 Contribuir
 
