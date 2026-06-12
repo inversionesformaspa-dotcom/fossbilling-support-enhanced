@@ -1,5 +1,6 @@
 # 📬 FOSSBilling Support Module (Enhanced)  
 
+> 📖 [English version](README_en.md)
 Módulo de soporte extendido para FOSSBilling 8.2+. Añade gestión completa de tickets de soporte abiertos, respondidos y reabiertos, utilizando el correo electrónico (POP3 + SMTP), filtros de spam con Sieve y SpamAssassin, tickets de staff, y mucho más.
 
 ## ✨ Características
